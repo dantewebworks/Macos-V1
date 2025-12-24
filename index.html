@@ -1,0 +1,3001 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NextGen OS</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="A beautiful macOS-style interface with voice commands">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NextGen OS">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-TileColor" content="#1a1a2e">
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="./manifest.json">
+
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
+    <link rel="apple-touch-icon" href="./icons/icon.svg">
+
+    <!-- Splash Screens for iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            /* Enable hardware acceleration globally */
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            /* Default wallpaper - will be overridden by JavaScript settings */
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #533483 75%, #e94560 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 20s ease infinite;
+            /* Use will-change for better animation performance */
+            will-change: background-position;
+            /* Contain layout for performance */
+            contain: layout style;
+        }
+
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .menu-bar {
+            background: rgba(30, 30, 30, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            will-change: transform;
+            contain: layout style;
+        }
+
+        .dock {
+            background: rgba(40, 40, 40, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+            will-change: transform;
+            contain: layout;
+        }
+
+        .dock-icon {
+            transition: transform 0.15s ease-out;
+            will-change: transform;
+        }
+
+        .dock-icon:hover {
+            transform: scale(1.25) translateY(-8px);
+        }
+
+        /* Dock indicator dots */
+        .dock-icon-indicator {
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 3px;
+        }
+
+        .dock-indicator-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            transition: all 0.2s ease;
+        }
+
+        .dock-indicator-dot.minimized {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Dock icon dragging states */
+        .dock-icon.dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+        }
+
+        .dock-icon.drag-over {
+            transform: translateX(20px);
+        }
+
+        .dock-icon.drag-over-left {
+            transform: translateX(-20px);
+        }
+
+        .dock-separator {
+            width: 1px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            margin: 0 4px;
+            align-self: center;
+        }
+
+        /* Window minimize animation */
+        .window-minimizing {
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: bottom center;
+        }
+
+        .window-restoring {
+            transition: transform 0.4s cubic-bezier(0.2, 0, 0.4, 1),
+                opacity 0.4s cubic-bezier(0.2, 0, 0.4, 1);
+            transform-origin: bottom center;
+        }
+
+        .window-minimized {
+            transform: scale(0.1) translateY(100vh);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .desktop-container {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 10px;
+            height: calc(100vh - 100px);
+        }
+
+        .desktop-item {
+            width: 80px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.15s;
+        }
+
+        .desktop-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .desktop-item-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+        }
+
+        .desktop-item-name {
+            color: white;
+            font-size: 11px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+            word-wrap: break-word;
+            margin-top: 4px;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+        }
+
+        .window-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: transparent;
+            font-weight: bold;
+        }
+
+        .window-btn:hover {
+            filter: brightness(1.2);
+        }
+
+        .window-btn.close {
+            background: #ff5f57;
+            border: 1px solid #e0443e;
+        }
+
+        .window-btn.close:hover {
+            color: #4a0000;
+        }
+
+        .window-btn.close::after {
+            content: '✕';
+        }
+
+        .window-btn.minimize {
+            background: #febc2e;
+            border: 1px solid #d89e24;
+        }
+
+        .window-btn.minimize:hover {
+            color: #5a4a00;
+        }
+
+        .window-btn.minimize::after {
+            content: '−';
+        }
+
+        .window-btn.maximize {
+            background: #28c840;
+            border: 1px solid #1aab29;
+        }
+
+        .window-btn.maximize:hover {
+            color: #004a00;
+        }
+
+        .window-btn.maximize::after {
+            content: '+';
+        }
+
+        .close-btn {
+            background: #ff5f57;
+            border: 1px solid #e0443e;
+        }
+
+        .minimize-btn {
+            background: #febc2e;
+            border: 1px solid #d89e24;
+        }
+
+        .maximize-btn {
+            background: #28c840;
+            border: 1px solid #1aab29;
+        }
+
+        .window-title {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .resizable-window {
+            position: absolute;
+            min-width: 300px;
+            min-height: 200px;
+        }
+
+        /* Resize handles - more visible */
+        .resize-handle {
+            position: absolute;
+            z-index: 101;
+            transition: background 0.2s;
+        }
+
+        .resize-handle-n,
+        .resize-n {
+            top: 0;
+            left: 10px;
+            right: 10px;
+            height: 6px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle-s,
+        .resize-s {
+            bottom: 0;
+            left: 10px;
+            right: 10px;
+            height: 6px;
+            cursor: ns-resize;
+        }
+
+        .resize-handle-e,
+        .resize-e {
+            right: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 6px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle-w,
+        .resize-w {
+            left: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 6px;
+            cursor: ew-resize;
+        }
+
+        .resize-handle-ne,
+        .resize-ne {
+            top: 0;
+            right: 0;
+            width: 14px;
+            height: 14px;
+            cursor: nesw-resize;
+        }
+
+        .resize-handle-nw,
+        .resize-nw {
+            top: 0;
+            left: 0;
+            width: 14px;
+            height: 14px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-se,
+        .resize-se {
+            bottom: 0;
+            right: 0;
+            width: 14px;
+            height: 14px;
+            cursor: nwse-resize;
+        }
+
+        .resize-handle-sw,
+        .resize-sw {
+            bottom: 0;
+            left: 0;
+            width: 14px;
+            height: 14px;
+            cursor: nesw-resize;
+        }
+
+        .resize-handle:hover,
+        .resize-n:hover,
+        .resize-s:hover,
+        .resize-e:hover,
+        .resize-w:hover,
+        .resize-ne:hover,
+        .resize-nw:hover,
+        .resize-se:hover,
+        .resize-sw:hover {
+            background: rgba(0, 122, 255, 0.4);
+        }
+
+        /* Corner resize indicator */
+        .resize-se::after,
+        .resize-handle-se::after {
+            content: '';
+            position: absolute;
+            right: 3px;
+            bottom: 3px;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid rgba(255, 255, 255, 0.3);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .resize-se:hover::after,
+        .resize-handle-se:hover::after {
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Extra close button (top right X) */
+        .window-close-x {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .window-close-x:hover {
+            background: #ff5f57;
+            color: white;
+        }
+
+        .context-menu {
+            position: fixed;
+            background: rgba(40, 40, 40, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 8px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            padding: 6px 0;
+            min-width: 180px;
+            z-index: 2000;
+            display: none;
+            will-change: transform, opacity;
+        }
+
+        .context-menu.show {
+            display: block;
+        }
+
+        .context-menu-item {
+            padding: 8px 16px;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .context-menu-item:hover {
+            background: #007aff;
+        }
+
+        .context-menu-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 4px 0;
+        }
+
+        .calculator-window {
+            background: linear-gradient(180deg, #323232 0%, #1c1c1c 100%);
+            border-radius: 10px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
+            position: absolute;
+            z-index: 100;
+        }
+
+        .calc-btn {
+            transition: all 0.1s ease;
+            border: none;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .calc-btn:active {
+            filter: brightness(1.3);
+            transform: scale(0.95);
+        }
+
+        .calc-btn.num {
+            background: #616161;
+            color: white;
+        }
+
+        .calc-btn.num:hover {
+            background: #757575;
+        }
+
+        .calc-btn.op {
+            background: #ff9f0a;
+            color: white;
+        }
+
+        .calc-btn.op:hover {
+            background: #ffb340;
+        }
+
+        .calc-btn.func {
+            background: #a5a5a5;
+            color: black;
+        }
+
+        .calc-btn.func:hover {
+            background: #c5c5c5;
+        }
+
+        .calc-btn.zero {
+            border-radius: 35px;
+        }
+
+        .display {
+            background: #1c1c1c;
+            color: white;
+            text-align: right;
+            font-size: 48px;
+            font-weight: 300;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .fruit-ninja-window {
+            background: linear-gradient(180deg, #2d5016 0%, #1a3009 100%);
+            border-radius: 10px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            position: absolute;
+            z-index: 100;
+        }
+
+        .game-canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .game-hud {
+            position: absolute;
+            top: 45px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+
+        .life {
+            font-size: 24px;
+        }
+
+        .life.lost {
+            opacity: 0.3;
+        }
+
+        .start-screen,
+        .game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+
+        .game-over-screen {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 40px;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .game-over-screen.show {
+            display: block;
+        }
+
+        .play-btn {
+            background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+
+        .play-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .folder-window {
+            background: rgba(40, 40, 40, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: absolute;
+            z-index: 100;
+            will-change: transform;
+            contain: layout;
+        }
+
+        .folder-toolbar {
+            background: rgba(60, 60, 60, 0.9);
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .folder-toolbar-btn {
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .folder-toolbar-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .folder-content {
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 15px;
+            min-height: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .folder-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .folder-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .folder-item-icon {
+            font-size: 40px;
+            margin-bottom: 5px;
+        }
+
+        .folder-item-name {
+            color: white;
+            font-size: 11px;
+            text-align: center;
+            word-wrap: break-word;
+        }
+
+        .folder-item-img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .folder-icon {
+            background: linear-gradient(180deg, #5fc9f8 0%, #1e90ff 100%);
+            border-radius: 8px 8px 4px 4px;
+            position: relative;
+            width: 50px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .folder-icon::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 0;
+            width: 20px;
+            height: 8px;
+            background: linear-gradient(180deg, #5fc9f8 0%, #1e90ff 100%);
+            border-radius: 4px 4px 0 0;
+        }
+
+        .image-editor-window {
+            background: rgba(30, 30, 30, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: absolute;
+            z-index: 100;
+            will-change: transform;
+            contain: layout;
+        }
+
+        .editor-canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: #1a1a1a;
+            min-height: 400px;
+        }
+
+        #editorCanvas {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 4px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .editor-toolbar {
+            background: rgba(50, 50, 50, 0.9);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .editor-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .editor-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .editor-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .ai-prompt-container {
+            background: rgba(40, 40, 40, 0.9);
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .ai-prompt-input {
+            width: calc(100% - 100px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .ai-prompt-input:focus {
+            border-color: #007aff;
+        }
+
+        .ai-apply-btn {
+            background: linear-gradient(135deg, #007aff, #5856d6);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #007aff;
+            background: rgba(0, 122, 255, 0.1);
+        }
+
+        .notes-window {
+            background: rgba(30, 30, 30, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: absolute;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            will-change: transform;
+            contain: layout;
+        }
+
+        .notes-container {
+            display: flex;
+            height: calc(100% - 38px);
+        }
+
+        .notes-sidebar {
+            width: 250px;
+            background: rgba(45, 45, 45, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notes-search {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .notes-search-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .notes-search-input:focus {
+            border-color: #007aff;
+        }
+
+        .notes-folders {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .folder-section {
+            margin-bottom: 8px;
+        }
+
+        .folder-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            margin: 0 8px;
+        }
+
+        .folder-header:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .folder-header i {
+            margin-right: 8px;
+            width: 14px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .folder-header.collapsed i {
+            transform: rotate(-90deg);
+        }
+
+        .notes-list {
+            padding: 4px 8px;
+        }
+
+        .note-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+            margin: 2px 0;
+            transition: all 0.15s;
+        }
+
+        .note-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .note-item.active {
+            background: rgba(0, 122, 255, 0.4);
+            color: white;
+        }
+
+        .note-item-icon {
+            margin-right: 10px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .note-item-title {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .note-item-delete {
+            opacity: 0;
+            color: rgba(255, 255, 255, 0.4);
+            padding: 4px;
+        }
+
+        .note-item:hover .note-item-delete {
+            opacity: 1;
+        }
+
+        .note-item-delete:hover {
+            color: #ff5f57;
+        }
+
+        .notes-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notes-toolbar {
+            background: rgba(50, 50, 50, 0.9);
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+        }
+
+        .notes-toolbar-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .notes-toolbar-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .notes-toolbar-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            margin: 0 4px;
+        }
+
+        .notes-ai-btn {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .notes-ai-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .notes-title-input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+            padding: 12px 16px;
+            outline: none;
+            width: 100%;
+        }
+
+        .notes-title-input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .notes-editor {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            outline: none;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .notes-editor:empty:before {
+            content: 'Start typing your note...';
+            color: rgba(255, 255, 255, 0.3);
+            display: block;
+        }
+
+        .notes-editor:focus {
+            outline: none;
+        }
+
+        .notes-editor h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 16px 0 8px 0;
+            color: white;
+        }
+
+        .notes-editor h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 14px 0 6px 0;
+            color: white;
+        }
+
+        .notes-editor ul,
+        .notes-editor ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+
+        .notes-editor code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+            color: #ff9f0a;
+        }
+
+        .notes-editor blockquote {
+            border-left: 3px solid #007aff;
+            margin: 12px 0;
+            padding-left: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .ai-chat-panel {
+            width: 300px;
+            background: rgba(45, 45, 45, 0.98);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ai-chat-header {
+            padding: 12px 16px;
+            background: rgba(60, 60, 60, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-chat-header-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-chat-header-text {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .ai-message {
+            margin-bottom: 12px;
+            animation: messageSlide 0.3s ease;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .ai-message-user {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .ai-message-ai {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .ai-message-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .ai-message-user .ai-message-bubble {
+            background: #007aff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-message-ai .ai-message-bubble {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            border-bottom-left-radius: 4px;
+        }
+
+        .ai-chat-input-container {
+            padding: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .ai-chat-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+
+        @keyframes typingBounce {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+            }
+
+            30% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .connections-panel {
+            position: absolute;
+            right: 20px;
+            bottom: 80px;
+            width: 280px;
+            background: rgba(40, 40, 40, 0.98);
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            padding: 16px;
+            display: none;
+            z-index: 200;
+        }
+
+        .connections-panel.show {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .connections-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .connections-title {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connections-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .connection-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin: 8px 0;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .connection-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .connection-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #007aff, #5856d6);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+        }
+
+        .connection-info {
+            flex: 1;
+        }
+
+        .connection-note {
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .connection-preview {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(40, 40, 40, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            padding: 24px;
+            width: 320px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        #iconInput {
+            display: none;
+        }
+
+        .dock-icon-inner img.custom-icon {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: inherit;
+        }
+
+        .dock-icon-inner.has-custom-icon {
+            padding: 0;
+        }
+
+        /* Voice Command Styles */
+        .voice-toggle {
+            position: fixed;
+            top: 40px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            background: rgba(40, 40, 40, 0.9);
+            backdrop-filter: blur(20px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .voice-toggle:hover {
+            transform: scale(1.1);
+            background: rgba(60, 60, 60, 0.95);
+        }
+
+        .voice-toggle i {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .voice-toggle.active {
+            background: linear-gradient(135deg, #007aff, #5856d6);
+            animation: pulse 2s infinite;
+        }
+
+        .voice-toggle.active i {
+            color: white;
+        }
+
+        .voice-toggle.listening {
+            background: linear-gradient(135deg, #ff9500, #ff2d55);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 15px rgba(0, 122, 255, 0);
+            }
+        }
+
+        .voice-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(30px);
+            border-radius: 20px;
+            padding: 30px 50px;
+            z-index: 2500;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .voice-indicator.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: auto;
+        }
+
+        .voice-indicator-content {
+            text-align: center;
+        }
+
+        .voice-waves {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .voice-waves span {
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #007aff, #5856d6);
+            border-radius: 2px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        .voice-waves span:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .voice-waves span:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .voice-waves span:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .voice-waves span:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .voice-waves span:nth-child(5) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            100% {
+                height: 20px;
+            }
+
+            50% {
+                height: 40px;
+            }
+        }
+
+        .voice-indicator.listening .voice-waves span {
+            background: linear-gradient(180deg, #ff9500, #ff2d55);
+        }
+
+        .voice-status {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .voice-command {
+            color: white;
+            font-size: 22px;
+            font-weight: 600;
+            min-height: 30px;
+        }
+
+        .voice-indicator.success .voice-waves span {
+            background: linear-gradient(180deg, #4ade80, #22c55e);
+            animation: none;
+            height: 30px;
+        }
+
+        .voice-indicator.error .voice-waves span {
+            background: linear-gradient(180deg, #ff5f57, #ff2d55);
+            animation: none;
+            height: 30px;
+        }
+
+        .voice-hint {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            margin-top: 12px;
+        }
+
+        .voice-indicator.success .voice-hint,
+        .voice-indicator.error .voice-hint {
+            display: none;
+        }
+
+        .voice-label {
+            display: none;
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+        }
+
+        .voice-toggle:hover .voice-label {
+            display: block;
+        }
+
+        .voice-toggle.active .voice-label {
+            color: #4ade80;
+        }
+
+        /* Settings Window Styles */
+        .settings-window {
+            background: rgba(30, 30, 30, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: absolute;
+            z-index: 100;
+            will-change: transform;
+            contain: layout;
+        }
+
+        .settings-container {
+            display: flex;
+            height: calc(100% - 38px);
+        }
+
+        .settings-sidebar {
+            width: 200px;
+            background: rgba(45, 45, 45, 0.9);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 8px;
+        }
+
+        .settings-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: all 0.15s;
+        }
+
+        .settings-nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .settings-nav-item.active {
+            background: rgba(0, 122, 255, 0.3);
+            color: white;
+        }
+
+        .settings-nav-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .settings-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .settings-section {
+            display: none;
+        }
+
+        .settings-section.active {
+            display: block;
+        }
+
+        .settings-section h2 {
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+        }
+
+        .settings-description {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .settings-group {
+            margin-bottom: 28px;
+        }
+
+        .settings-group h3 {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+        }
+
+        /* Wallpaper Grid */
+        .wallpaper-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+        }
+
+        .wallpaper-item {
+            aspect-ratio: 16/10;
+            border-radius: 8px;
+            cursor: pointer;
+            overflow: hidden;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .wallpaper-item:hover {
+            transform: scale(1.05);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .wallpaper-item.active {
+            border-color: var(--accent-color, #007aff);
+            box-shadow: 0 0 0 2px var(--accent-color, #007aff);
+        }
+
+        .wallpaper-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .wallpaper-item .wallpaper-gradient {
+            width: 100%;
+            height: 100%;
+        }
+
+        .wallpaper-item .delete-wallpaper {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+        }
+
+        .wallpaper-item:hover .delete-wallpaper {
+            display: flex;
+        }
+
+        /* Custom Wallpaper Upload */
+        .custom-wallpaper-upload {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .custom-wallpaper-upload:hover {
+            border-color: var(--accent-color, #007aff);
+            background: rgba(0, 122, 255, 0.1);
+        }
+
+        .custom-wallpaper-upload i {
+            font-size: 36px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Accent Colors */
+        .accent-colors {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .accent-color {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .accent-color:hover {
+            transform: scale(1.15);
+        }
+
+        .accent-color.active {
+            border-color: white;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Toggle Switch */
+        .settings-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background: var(--accent-color, #007aff);
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Slider Row */
+        .settings-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+        }
+
+        .settings-slider-row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .settings-slider-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Dock Position Options */
+        .dock-position-options {
+            display: flex;
+            gap: 16px;
+        }
+
+        .dock-position-option {
+            text-align: center;
+            cursor: pointer;
+            padding: 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .dock-position-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dock-position-option.active {
+            background: rgba(0, 122, 255, 0.3);
+        }
+
+        .dock-preview {
+            width: 60px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        .dock-preview-bar {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 3px;
+        }
+
+        .dock-preview-bar.bottom {
+            bottom: 4px;
+            left: 10px;
+            right: 10px;
+            height: 6px;
+        }
+
+        .dock-preview-bar.left {
+            left: 4px;
+            top: 8px;
+            bottom: 8px;
+            width: 6px;
+        }
+
+        .dock-preview-bar.right {
+            right: 4px;
+            top: 8px;
+            bottom: 8px;
+            width: 6px;
+        }
+
+        .dock-position-option span {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+        }
+
+        /* About Section */
+        .about-content {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .about-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #1a1a2e, #533483, #e94560);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            margin: 0 auto 16px;
+        }
+
+        .about-content h3 {
+            color: white;
+            font-size: 22px;
+            margin: 0 0 4px 0;
+        }
+
+        .about-version {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .about-description {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            max-width: 350px;
+            margin: 0 auto 24px;
+            line-height: 1.5;
+        }
+
+        .about-features {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .about-feature {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+        }
+
+        .about-feature i {
+            font-size: 24px;
+            color: var(--accent-color, #007aff);
+        }
+
+        .reset-settings-btn {
+            background: rgba(255, 59, 48, 0.2);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            color: #ff3b30;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .reset-settings-btn:hover {
+            background: rgba(255, 59, 48, 0.3);
+        }
+
+        /* Launchpad Styles */
+        .launchpad {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 60px 40px 40px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .launchpad.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .launchpad-header {
+            width: 100%;
+            max-width: 300px;
+            margin-bottom: 40px;
+        }
+
+        .launchpad-search {
+            width: 100%;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            text-align: center;
+        }
+
+        .launchpad-search::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .launchpad-search:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .launchpad-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 120px));
+            gap: 30px 40px;
+            justify-content: center;
+            align-content: start;
+            max-width: 900px;
+            width: 100%;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .launchpad-app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            animation: launchpadAppIn 0.4s ease backwards;
+        }
+
+        .launchpad-app:hover {
+            transform: scale(1.1);
+        }
+
+        .launchpad-app:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes launchpadAppIn {
+            from {
+                opacity: 0;
+                transform: scale(0.5) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .launchpad-app-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            margin-bottom: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .launchpad-app-icon::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent);
+            border-radius: 18px 18px 0 0;
+        }
+
+        .launchpad-app-icon i {
+            color: white;
+            position: relative;
+            z-index: 1;
+        }
+
+        .launchpad-app-icon span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .launchpad-app-name {
+            color: white;
+            font-size: 13px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .launchpad-dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .launchpad-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .launchpad-dot.active {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .launchpad-close-hint {
+            position: absolute;
+            bottom: 20px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        .launchpad-app.hidden {
+            display: none;
+        }
+
+        /* Launchpad icon gradients */
+        .lp-icon-finder {
+            background: linear-gradient(135deg, #5fc9f8, #1e90ff);
+        }
+
+        .lp-icon-calculator {
+            background: linear-gradient(135deg, #4a4a4a, #2d2d2d);
+        }
+
+        .lp-icon-fruitninja {
+            background: linear-gradient(135deg, #ff6b6b, #c0392b);
+        }
+
+        .lp-icon-imageeditor {
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+        }
+
+        .lp-icon-notes {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        }
+
+        .lp-icon-settings {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+
+        .lp-icon-safari {
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        }
+
+        .lp-icon-music {
+            background: linear-gradient(135deg, #fb7185, #f43f5e);
+        }
+
+        .lp-icon-photos {
+            background: linear-gradient(135deg, #f472b6, #ec4899);
+        }
+
+        .lp-icon-messages {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+        }
+
+        .lp-icon-mail {
+            background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+        }
+
+        .lp-icon-calendar {
+            background: linear-gradient(135deg, #f87171, #ef4444);
+        }
+
+        .lp-icon-maps {
+            background: linear-gradient(135deg, #34d399, #10b981);
+        }
+
+        .lp-icon-weather {
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        }
+
+        .lp-icon-clock {
+            background: linear-gradient(135deg, #1f2937, #111827);
+        }
+
+        .lp-icon-appstore {
+            background: linear-gradient(135deg, #60a5fa, #2563eb);
+        }
+
+        .lp-icon-terminal {
+            background: linear-gradient(135deg, #1f2937, #000000);
+        }
+
+        .lp-icon-gramfinder {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        /* 1Gram Finder Styles */
+        .gramfinder-window {
+            background: rgba(30, 30, 30, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        .gramfinder-header {
+            background: linear-gradient(180deg, rgba(60, 60, 60, 0.9), rgba(40, 40, 40, 0.9));
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: grab;
+        }
+
+        .gramfinder-header:active {
+            cursor: grabbing;
+        }
+
+        .gramfinder-content {
+            height: calc(100% - 48px);
+            background: #f9fafb;
+        }
+
+        .gramfinder-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Menu Bar -->
+    <div class="menu-bar h-7 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-50 select-none">
+        <div class="flex items-center gap-4">
+            <span class="text-white font-bold text-sm"><i class="fab fa-apple"></i></span>
+            <span class="text-white text-xs font-semibold" id="menuAppName">Finder</span>
+            <span class="text-white text-xs">File</span>
+            <span class="text-white text-xs">Edit</span>
+            <span class="text-white text-xs">View</span>
+            <span class="text-white text-xs">Window</span>
+            <span class="text-white text-xs">Help</span>
+        </div>
+        <div class="flex items-center gap-3 text-white text-xs">
+            <i class="fas fa-battery-full"></i>
+            <i class="fas fa-wifi"></i>
+            <i class="fas fa-search"></i>
+            <i class="fas fa-sliders-h"></i>
+            <span id="clock">Mon Jan 1 9:41 AM</span>
+        </div>
+    </div>
+
+    <!-- Desktop -->
+    <div class="pt-7 h-screen relative" id="desktop">
+        <div class="desktop-container" id="desktopItems"></div>
+
+        <!-- Calculator Window -->
+        <div id="calculator" class="calculator-window resizable-window"
+            style="width: 260px; top: 100px; left: 50px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-s" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-e" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-w" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-ne" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-nw" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-se" data-window="calculator"></div>
+            <div class="resize-handle resize-handle-sw" data-window="calculator"></div>
+            <div class="flex items-center justify-between" id="calcTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeCalculator()"></div>
+                    <div class="window-btn minimize" onclick="minimizeCalculator()"></div>
+                    <div class="window-btn maximize" onclick="maximizeCalculator()"></div>
+                </div>
+                <span class="window-title">Calculator</span>
+                <button class="window-close-x" onclick="closeCalculator()">✕</button>
+            </div>
+            <div class="display" id="display">0</div>
+            <div class="p-3 pb-4">
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                    <button class="calc-btn func rounded-full w-12 h-12 text-lg font-medium"
+                        onclick="clearAll()">AC</button>
+                    <button class="calc-btn func rounded-full w-12 h-12 text-lg" onclick="toggleSign()">+/-</button>
+                    <button class="calc-btn func rounded-full w-12 h-12 text-lg" onclick="percentage()">%</button>
+                    <button class="calc-btn op rounded-full w-12 h-12 text-xl" onclick="setOperator('/')">÷</button>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('7')">7</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('8')">8</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('9')">9</button>
+                    <button class="calc-btn op rounded-full w-12 h-12 text-xl" onclick="setOperator('*')">×</button>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('4')">4</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('5')">5</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('6')">6</button>
+                    <button class="calc-btn op rounded-full w-12 h-12 text-xl" onclick="setOperator('-')">−</button>
+                </div>
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('1')">1</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('2')">2</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendNumber('3')">3</button>
+                    <button class="calc-btn op rounded-full w-12 h-12 text-xl" onclick="setOperator('+')">+</button>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button class="calc-btn num zero col-span-2 w-28 h-12 text-xl text-left pl-6"
+                        onclick="appendNumber('0')">0</button>
+                    <button class="calc-btn num rounded-full w-12 h-12 text-xl" onclick="appendDecimal()">.</button>
+                    <button class="calc-btn op rounded-full w-12 h-12 text-xl" onclick="calculate()">=</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fruit Ninja Window -->
+        <div id="fruitNinja" class="fruit-ninja-window resizable-window"
+            style="width: 500px; height: 400px; top: 80px; left: 350px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-s" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-e" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-w" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-ne" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-nw" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-se" data-window="fruitNinja"></div>
+            <div class="resize-handle resize-handle-sw" data-window="fruitNinja"></div>
+            <div class="flex items-center justify-between" id="fruitTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeFruitNinja()"></div>
+                    <div class="window-btn minimize" onclick="minimizeFruitNinja()"></div>
+                    <div class="window-btn maximize" onclick="maximizeFruitNinja()"></div>
+                </div>
+                <span class="window-title">Fruit Ninja</span>
+                <button class="window-close-x" onclick="closeFruitNinja()">✕</button>
+            </div>
+            <div style="position: relative; width: 100%; height: calc(100% - 38px);">
+                <canvas id="gameCanvas" class="game-canvas"></canvas>
+                <div class="game-hud">
+                    <div>Score: <span id="score">0</span></div>
+                    <div class="lives">
+                        <span class="life" id="life1">❌</span>
+                        <span class="life" id="life2">❌</span>
+                        <span class="life" id="life3">❌</span>
+                    </div>
+                </div>
+                <div class="start-screen" id="startScreen">
+                    <h1>🍎 Fruit Ninja 🍊</h1>
+                    <p>Slice fruits, avoid bombs!</p>
+                    <button class="play-btn" onclick="startGame()">Play</button>
+                </div>
+                <div class="game-over-screen" id="gameOverScreen">
+                    <h1>Game Over!</h1>
+                    <p>Final Score: <span id="finalScore">0</span></p>
+                    <button class="play-btn" onclick="startGame()">Play Again</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Folder Window -->
+        <div id="folderWindow" class="folder-window resizable-window"
+            style="width: 600px; height: 450px; top: 50px; left: 200px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-s" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-e" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-w" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-ne" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-nw" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-se" data-window="folderWindow"></div>
+            <div class="resize-handle resize-handle-sw" data-window="folderWindow"></div>
+            <div class="flex items-center justify-between" id="folderTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeFolder()"></div>
+                    <div class="window-btn minimize" onclick="minimizeFolder()"></div>
+                    <div class="window-btn maximize" onclick="maximizeFolder()"></div>
+                </div>
+                <span class="window-title" id="folderTitle">Folder</span>
+                <button class="window-close-x" onclick="closeFolder()">✕</button>
+            </div>
+            <div class="folder-toolbar">
+                <span class="folder-toolbar-btn" onclick="triggerUpload()"><i class="fas fa-plus"></i> Add</span>
+                <span class="folder-toolbar-btn" onclick="showNewFolderModal()"><i class="fas fa-folder-plus"></i> New
+                    Folder</span>
+                <div style="flex:1;"></div>
+            </div>
+            <div class="folder-content" id="folderContent"></div>
+        </div>
+
+        <!-- Image Editor Window -->
+        <div id="imageEditor" class="image-editor-window resizable-window"
+            style="width: 700px; top: 60px; left: 150px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-s" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-e" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-w" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-ne" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-nw" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-se" data-window="imageEditor"></div>
+            <div class="resize-handle resize-handle-sw" data-window="imageEditor"></div>
+            <div class="flex items-center justify-between" id="editorTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeImageEditor()"></div>
+                    <div class="window-btn minimize" onclick="minimizeImageEditor()"></div>
+                    <div class="window-btn maximize" onclick="maximizeImageEditor()"></div>
+                </div>
+                <span class="window-title" id="editorTitle">Image Editor</span>
+                <button class="window-close-x" onclick="closeImageEditor()">✕</button>
+            </div>
+            <div class="editor-canvas-container" id="editorContainer">
+                <div class="upload-area" id="uploadArea" onclick="triggerUpload()">
+                    <i class="fas fa-cloud-upload-alt" style="font-size: 48px; margin-bottom: 10px;"></i>
+                    <p>Click to upload an image</p>
+                    <p style="font-size: 12px; margin-top: 5px;">or drag and drop</p>
+                </div>
+                <canvas id="editorCanvas" style="display: none;"></canvas>
+            </div>
+            <div class="editor-toolbar" id="editorToolbar" style="display: none;">
+                <button class="editor-btn" onclick="rotateImage(-90)"><i class="fas fa-undo"></i> Rotate Left</button>
+                <button class="editor-btn" onclick="rotateImage(90)"><i class="fas fa-redo"></i> Rotate Right</button>
+                <button class="editor-btn" onclick="flipImage('horizontal')"><i class="fas fa-arrows-alt-h"></i> Flip
+                    H</button>
+                <button class="editor-btn" onclick="flipImage('vertical')"><i class="fas fa-arrows-alt-v"></i> Flip
+                    V</button>
+                <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 8px;"></div>
+                <label style="color: rgba(255,255,255,0.7); font-size: 12px;">Brightness:</label>
+                <input type="range" class="editor-input" id="brightnessSlider" min="0" max="200" value="100"
+                    style="width: 80px;" onchange="applyFilters()">
+                <label style="color: rgba(255,255,255,0.7); font-size: 12px;">Contrast:</label>
+                <input type="range" class="editor-input" id="contrastSlider" min="0" max="200" value="100"
+                    style="width: 80px;" onchange="applyFilters()">
+                <button class="editor-btn" onclick="resetFilters()"><i class="fas fa-sync"></i> Reset</button>
+                <button class="editor-btn" onclick="downloadImage()" style="background: #28c840;"><i
+                        class="fas fa-download"></i> Save</button>
+            </div>
+            <div class="ai-prompt-container">
+                <input type="text" class="ai-prompt-input" id="aiPrompt"
+                    placeholder="Ask AI to edit: 'make it grayscale', 'sepia', 'invert', 'blur'...">
+                <button class="ai-apply-btn" onclick="applyAIFilter()"><i class="fas fa-magic"></i> Apply</button>
+            </div>
+        </div>
+
+        <!-- Notes App Window -->
+        <div id="notesApp" class="notes-window resizable-window"
+            style="width: 1000px; height: 650px; top: 40px; left: 180px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-s" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-e" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-w" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-ne" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-nw" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-se" data-window="notesApp"></div>
+            <div class="resize-handle resize-handle-sw" data-window="notesApp"></div>
+            <div class="flex items-center justify-between" id="notesTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeNotes()"></div>
+                    <div class="window-btn minimize" onclick="minimizeNotes()"></div>
+                    <div class="window-btn maximize" onclick="maximizeNotes()"></div>
+                </div>
+                <span class="window-title">Notes</span>
+                <button class="window-close-x" onclick="closeNotes()">✕</button>
+            </div>
+            <div class="notes-container">
+                <div class="notes-sidebar" id="notesSidebar">
+                    <div class="notes-search">
+                        <input type="text" class="notes-search-input" id="notesSearch" placeholder="🔍 Search notes..."
+                            oninput="searchNotes()">
+                    </div>
+                    <div class="notes-folders" id="notesFolders">
+                        <div class="folder-section">
+                            <div class="folder-header" onclick="toggleFolder(this, 'all')">
+                                <i class="fas fa-chevron-down"></i>
+                                <i class="fas fa-inbox" style="margin-right: 8px; color: #007aff;"></i>
+                                All Notes
+                                <span style="margin-left: auto; color: rgba(255,255,255,0.5);"
+                                    id="allNotesCount">0</span>
+                            </div>
+                            <div class="notes-list" id="allNotesList"></div>
+                        </div>
+                        <div class="folder-section">
+                            <div class="folder-header" onclick="toggleFolder(this, 'favorites')">
+                                <i class="fas fa-chevron-down"></i>
+                                <i class="fas fa-star" style="margin-right: 8px; color: #ffcc00;"></i>
+                                Favorites
+                                <span style="margin-left: auto; color: rgba(255,255,255,0.5);"
+                                    id="favoritesCount">0</span>
+                            </div>
+                            <div class="notes-list" id="favoritesList"></div>
+                        </div>
+                        <div class="folder-section">
+                            <div class="folder-header" onclick="toggleFolder(this, 'personal')">
+                                <i class="fas fa-chevron-down"></i>
+                                <i class="fas fa-user" style="margin-right: 8px; color: #4ade80;"></i>
+                                Personal
+                                <span style="margin-left: auto; color: rgba(255,255,255,0.5);"
+                                    id="personalCount">0</span>
+                            </div>
+                            <div class="notes-list" id="personalList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="notes-main">
+                    <div class="notes-toolbar">
+                        <button class="notes-toolbar-btn" onclick="createNewNote()" title="New Note">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="notes-toolbar-btn" onclick="formatText('bold')" title="Bold">
+                            <i class="fas fa-bold"></i>
+                        </button>
+                        <button class="notes-toolbar-btn" onclick="formatText('italic')" title="Italic">
+                            <i class="fas fa-italic"></i>
+                        </button>
+                        <div class="notes-toolbar-divider"></div>
+                        <button class="notes-ai-btn" onclick="aiSummarize()">
+                            <i class="fas fa-compress-alt"></i> Summarize
+                        </button>
+                        <button class="notes-ai-btn" onclick="aiExpand()">
+                            <i class="fas fa-expand-alt"></i> Expand
+                        </button>
+                        <button class="notes-ai-btn" onclick="findConnections()">
+                            <i class="fas fa-link"></i> Connect
+                        </button>
+                        <div style="flex:1;"></div>
+                        <button class="notes-toolbar-btn" onclick="toggleFavorite()" id="favoriteBtn" title="Favorite">
+                            <i class="far fa-star"></i>
+                        </button>
+                        <button class="notes-toolbar-btn" onclick="deleteCurrentNote()" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <input type="text" class="notes-title-input" id="noteTitle" placeholder="Note Title"
+                        oninput="autoSave()">
+                    <div class="notes-editor" id="noteEditor" contenteditable="true" oninput="autoSave()"></div>
+                </div>
+                <div class="ai-chat-panel" id="aiChatPanel">
+                    <div class="ai-chat-header">
+                        <div class="ai-chat-header-icon">
+                            <i class="fas fa-robot" style="color: white;"></i>
+                        </div>
+                        <span class="ai-chat-header-text">AI Assistant</span>
+                    </div>
+                    <div class="ai-chat-messages" id="aiChatMessages">
+                        <div class="ai-message ai-message-ai">
+                            <div class="ai-message-bubble">👋 Hi! I'm your AI note assistant.</div>
+                        </div>
+                    </div>
+                    <div class="ai-chat-input-container">
+                        <textarea class="ai-chat-input" id="aiChatInput" placeholder="Ask about your notes..." rows="2"
+                            onkeydown="handleAIChatKeydown(event)"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Window -->
+        <div id="settingsApp" class="settings-window resizable-window"
+            style="width: 700px; height: 550px; top: 60px; left: 200px; display: none;">
+            <div class="resize-handle resize-handle-n" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-s" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-e" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-w" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-ne" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-nw" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-se" data-window="settingsApp"></div>
+            <div class="resize-handle resize-handle-sw" data-window="settingsApp"></div>
+            <div class="flex items-center justify-between" id="settingsTitleBar">
+                <div class="window-controls">
+                    <div class="window-btn close" onclick="closeSettings()"></div>
+                    <div class="window-btn minimize" onclick="minimizeSettings()"></div>
+                    <div class="window-btn maximize" onclick="maximizeSettings()"></div>
+                </div>
+                <span class="window-title">Settings</span>
+                <button class="window-close-x" onclick="closeSettings()">✕</button>
+            </div>
+            <div class="settings-container">
+                <div class="settings-sidebar">
+                    <div class="settings-nav-item active" data-section="wallpaper"
+                        onclick="showSettingsSection('wallpaper')">
+                        <i class="fas fa-image"></i>
+                        <span>Wallpaper</span>
+                    </div>
+                    <div class="settings-nav-item" data-section="appearance"
+                        onclick="showSettingsSection('appearance')">
+                        <i class="fas fa-palette"></i>
+                        <span>Appearance</span>
+                    </div>
+                    <div class="settings-nav-item" data-section="dock" onclick="showSettingsSection('dock')">
+                        <i class="fas fa-ellipsis-h"></i>
+                        <span>Dock</span>
+                    </div>
+                    <div class="settings-nav-item" data-section="about" onclick="showSettingsSection('about')">
+                        <i class="fas fa-info-circle"></i>
+                        <span>About</span>
+                    </div>
+                </div>
+                <div class="settings-content">
+                    <!-- Wallpaper Section -->
+                    <div class="settings-section active" id="section-wallpaper">
+                        <h2>Wallpaper</h2>
+                        <p class="settings-description">Choose a wallpaper for your desktop</p>
+
+                        <div class="settings-group">
+                            <h3>Preset Wallpapers</h3>
+                            <div class="wallpaper-grid" id="wallpaperGrid"></div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Custom Wallpaper</h3>
+                            <div class="custom-wallpaper-upload"
+                                onclick="document.getElementById('wallpaperInput').click()">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Click to upload your own wallpaper</p>
+                                <p class="upload-hint">Supports JPG, PNG, GIF, WebP</p>
+                            </div>
+                            <input type="file" id="wallpaperInput" accept="image/*"
+                                onchange="handleWallpaperUpload(event)" style="display: none;">
+                        </div>
+
+                        <div class="settings-group" id="customWallpapersGroup" style="display: none;">
+                            <h3>Your Wallpapers</h3>
+                            <div class="wallpaper-grid" id="customWallpaperGrid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Appearance Section -->
+                    <div class="settings-section" id="section-appearance">
+                        <h2>Appearance</h2>
+                        <p class="settings-description">Customize the look and feel</p>
+
+                        <div class="settings-group">
+                            <h3>Accent Color</h3>
+                            <div class="accent-colors" id="accentColors">
+                                <div class="accent-color active" data-color="#007aff" style="background: #007aff;"
+                                    onclick="setAccentColor('#007aff')"></div>
+                                <div class="accent-color" data-color="#5856d6" style="background: #5856d6;"
+                                    onclick="setAccentColor('#5856d6')"></div>
+                                <div class="accent-color" data-color="#ff2d55" style="background: #ff2d55;"
+                                    onclick="setAccentColor('#ff2d55')"></div>
+                                <div class="accent-color" data-color="#ff9500" style="background: #ff9500;"
+                                    onclick="setAccentColor('#ff9500')"></div>
+                                <div class="accent-color" data-color="#4cd964" style="background: #4cd964;"
+                                    onclick="setAccentColor('#4cd964')"></div>
+                                <div class="accent-color" data-color="#5ac8fa" style="background: #5ac8fa;"
+                                    onclick="setAccentColor('#5ac8fa')"></div>
+                                <div class="accent-color" data-color="#ffcc00" style="background: #ffcc00;"
+                                    onclick="setAccentColor('#ffcc00')"></div>
+                                <div class="accent-color" data-color="#ff3b30" style="background: #ff3b30;"
+                                    onclick="setAccentColor('#ff3b30')"></div>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Menu Bar</h3>
+                            <div class="settings-toggle-row">
+                                <span>Translucent Menu Bar</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="translucentMenuBar" checked
+                                        onchange="toggleTranslucentMenuBar()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Animation</h3>
+                            <div class="settings-toggle-row">
+                                <span>Enable Wallpaper Animation</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="animatedWallpaper" checked
+                                        onchange="toggleWallpaperAnimation()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Performance</h3>
+                            <div class="settings-toggle-row">
+                                <span>Performance Mode (Disable blur effects)</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="performanceMode" onchange="togglePerformanceMode()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <p style="color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 8px;">Enable this if
+                                the interface feels slow. Disables backdrop blur effects.</p>
+                        </div>
+                    </div>
+
+                    <!-- Dock Section -->
+                    <div class="settings-section" id="section-dock">
+                        <h2>Dock</h2>
+                        <p class="settings-description">Customize your dock appearance</p>
+
+                        <div class="settings-group">
+                            <h3>Dock Size</h3>
+                            <div class="settings-slider-row">
+                                <span>Small</span>
+                                <input type="range" id="dockSize" min="40" max="80" value="48"
+                                    onchange="setDockSize(this.value)">
+                                <span>Large</span>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Magnification</h3>
+                            <div class="settings-toggle-row">
+                                <span>Enable Magnification on Hover</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="dockMagnification" checked
+                                        onchange="toggleDockMagnification()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3>Position</h3>
+                            <div class="dock-position-options">
+                                <div class="dock-position-option active" data-position="bottom"
+                                    onclick="setDockPosition('bottom')">
+                                    <div class="dock-preview">
+                                        <div class="dock-preview-bar bottom"></div>
+                                    </div>
+                                    <span>Bottom</span>
+                                </div>
+                                <div class="dock-position-option" data-position="left"
+                                    onclick="setDockPosition('left')">
+                                    <div class="dock-preview">
+                                        <div class="dock-preview-bar left"></div>
+                                    </div>
+                                    <span>Left</span>
+                                </div>
+                                <div class="dock-position-option" data-position="right"
+                                    onclick="setDockPosition('right')">
+                                    <div class="dock-preview">
+                                        <div class="dock-preview-bar right"></div>
+                                    </div>
+                                    <span>Right</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- About Section -->
+                    <div class="settings-section" id="section-about">
+                        <h2>About NextGen OS</h2>
+                        <div class="about-content">
+                            <div class="about-logo">N</div>
+                            <h3>NextGen OS</h3>
+                            <p class="about-version">Version 1.0.0</p>
+                            <p class="about-description">A beautiful macOS-style interface with voice commands,
+                                customizable dock icons, and more.</p>
+                            <div class="about-features">
+                                <div class="about-feature">
+                                    <i class="fas fa-microphone"></i>
+                                    <span>Voice Commands</span>
+                                </div>
+                                <div class="about-feature">
+                                    <i class="fas fa-image"></i>
+                                    <span>Custom Wallpapers</span>
+                                </div>
+                                <div class="about-feature">
+                                    <i class="fas fa-mobile-alt"></i>
+                                    <span>PWA Support</span>
+                                </div>
+                                <div class="about-feature">
+                                    <i class="fas fa-palette"></i>
+                                    <span>Customizable</span>
+                                </div>
+                            </div>
+                            <button class="reset-settings-btn" onclick="resetAllSettings()">
+                                <i class="fas fa-undo"></i> Reset All Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connections Panel -->
+        <div class="connections-panel" id="connectionsPanel">
+            <div class="connections-header">
+                <div class="connections-title">
+                    <i class="fas fa-link" style="color: #007aff;"></i>
+                    Related Notes
+                </div>
+                <button class="connections-close" onclick="closeConnections()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="connectionsList"></div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="openLaunchpad()"><i class="fas fa-th" style="width: 16px;"></i>
+            Launchpad</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="showNewFolderModal()"><i class="fas fa-folder-plus"
+                style="width: 16px;"></i> New Folder</div>
+        <div class="context-menu-item" onclick="triggerUpload()"><i class="fas fa-upload" style="width: 16px;"></i>
+            Upload Image</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="openCalculator()"><i class="fas fa-calculator" style="width: 16px;"></i>
+            Calculator</div>
+        <div class="context-menu-item" onclick="openFruitNinja()"><i class="fas fa-gamepad" style="width: 16px;"></i>
+            Fruit Ninja</div>
+        <div class="context-menu-item" onclick="openNotes()"><i class="fas fa-sticky-note" style="width: 16px;"></i>
+            Notes</div>
+        <div class="context-menu-item" onclick="openImageEditor()"><i class="fas fa-image" style="width: 16px;"></i>
+            Image Editor</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="openSettings()"><i class="fas fa-cog" style="width: 16px;"></i> Settings
+        </div>
+    </div>
+
+    <!-- Dock Context Menu -->
+    <div class="context-menu" id="dockContextMenu">
+        <div class="context-menu-item" onclick="changeDockIcon()"><i class="fas fa-image" style="width: 16px;"></i>
+            Change Icon</div>
+        <div class="context-menu-item" onclick="resetDockIcon()"><i class="fas fa-undo" style="width: 16px;"></i> Reset
+            to Default</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" id="dockAppName" style="color: rgba(255,255,255,0.5); pointer-events: none;"><i
+                class="fas fa-info-circle" style="width: 16px;"></i> <span>App Name</span></div>
+    </div>
+
+    <!-- 1Gram Finder Window -->
+    <div id="gramfinderApp" class="resizable-window gramfinder-window"
+        style="display: none; width: 1100px; height: 700px; left: 80px; top: 40px;">
+        <div id="gramfinderTitleBar" class="window-header gramfinder-header">
+            <div class="flex items-center gap-2">
+                <button class="window-btn close" onclick="closeGramFinder()"></button>
+                <button class="window-btn minimize" onclick="minimizeGramFinder()"></button>
+                <button class="window-btn maximize" onclick="maximizeGramFinder()"></button>
+            </div>
+            <div class="window-title">
+                <i class="fas fa-search text-green-400 mr-2"></i>1Gram Finder
+            </div>
+            <div style="width: 80px;"></div>
+        </div>
+        <div class="gramfinder-content">
+            <iframe id="gramfinderFrame" src="1gramfinder/index.html" frameborder="0"></iframe>
+        </div>
+        <div class="resize-handle resize-handle-n" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-s" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-e" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-w" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-nw" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-ne" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-sw" data-window="gramfinderApp"></div>
+        <div class="resize-handle resize-handle-se" data-window="gramfinderApp"></div>
+    </div>
+
+    <!-- Launchpad -->
+    <div id="launchpad" class="launchpad">
+        <div class="launchpad-header">
+            <input type="text" class="launchpad-search" id="launchpadSearch" placeholder="Search apps..."
+                oninput="filterLaunchpadApps()">
+        </div>
+        <div class="launchpad-grid" id="launchpadGrid"></div>
+        <div class="launchpad-dots" id="launchpadDots">
+            <span class="launchpad-dot active"></span>
+        </div>
+        <div class="launchpad-close-hint">Press ESC or click anywhere to close</div>
+    </div>
+
+    <!-- Voice Command Indicator -->
+    <div id="voiceIndicator" class="voice-indicator">
+        <div class="voice-indicator-content">
+            <div class="voice-waves">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="voice-status" id="voiceStatus">Listening... say your command</div>
+            <div class="voice-command" id="voiceCommand"></div>
+            <div class="voice-hint">
+                Try: "calculator", "notes", "game", "photos"
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Toggle Button -->
+    <div id="voiceToggle" class="voice-toggle" onclick="toggleVoiceCommands()"
+        title="Click to enable voice commands - Say 'Hey NextGen' then your command">
+        <i class="fas fa-microphone"></i>
+        <span class="voice-label">Voice</span>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div class="modal-overlay" id="newFolderModal">
+        <div class="modal-content">
+            <div style="color: white; font-size: 18px; font-weight: 600; margin-bottom: 16px;">New Folder</div>
+            <input type="text" id="folderNameInput" placeholder="Folder name"
+                onkeydown="if(event.key==='Enter')confirmNewFolder()"
+                style="width: 100%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 16px; box-sizing: border-box;">
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button onclick="hideNewFolderModal()"
+                    style="padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; background: rgba(255,255,255,0.1); color: white;">Cancel</button>
+                <button onclick="confirmNewFolder()"
+                    style="padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; background: #007aff; color: white;">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" multiple onchange="handleFileUpload(event)">
+    <input type="file" id="iconInput" accept="image/*" onchange="handleIconUpload(event)">
+
+    <!-- Dock -->
+    <div class="dock fixed bottom-2 px-3 py-2 rounded-2xl flex items-end gap-1 z-[500]" id="dock"
+        style="left: 50%; transform: translateX(-50%);">
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="launchpad"
+            data-app-name="Launchpad" onclick="toggleLaunchpad()">
+            <div class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-gray-600 to-gray-800 flex items-center justify-center overflow-hidden"
+                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 8px;">
+                <span style="width: 6px; height: 6px; background: #ff5f57; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #28c840; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #007aff; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #ffcc00; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #a855f7; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #ff9500; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #5fc9f8; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #4ade80; border-radius: 2px;"></span>
+                <span style="width: 6px; height: 6px; background: #f472b6; border-radius: 2px;"></span>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="finder"
+            data-app-name="Finder" onclick="openFinder()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-sky-400 to-sky-600 flex items-center justify-content overflow-hidden">
+                <i class="fas fa-folder text-white text-xl"></i>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="calculator"
+            data-app-name="Calculator" onclick="openCalculator()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-xl bg-gradient-to-b from-gray-700 to-gray-900 flex items-center justify-center border border-gray-600 overflow-hidden">
+                <span class="text-white text-lg font-semibold">±</span>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="fruitninja"
+            data-app-name="Fruit Ninja" onclick="openFruitNinja()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-xl bg-gradient-to-b from-red-500 to-red-700 flex items-center justify-center border border-red-400 relative overflow-hidden">
+                <span class="text-2xl">🍎</span>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="imageeditor"
+            data-app-name="Image Editor" onclick="openImageEditor()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-purple-400 to-purple-600 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-image text-white text-lg"></i>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="notes"
+            data-app-name="Notes" onclick="openNotes()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-yellow-400 to-yellow-600 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-sticky-note text-white text-lg"></i>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="settings"
+            data-app-name="Settings" onclick="openSettings()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-gray-500 to-gray-700 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-cog text-white text-lg"></i>
+            </div>
+        </div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="gramfinder"
+            data-app-name="1Gram Finder" onclick="openGramFinder()">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-lg bg-gradient-to-b from-emerald-500 to-emerald-700 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-search text-white text-lg"></i>
+            </div>
+        </div>
+        <div class="w-px h-10 bg-white/30 mx-1"></div>
+        <div class="dock-icon w-12 h-12 flex items-center justify-center cursor-pointer" data-app="trash"
+            data-app-name="Trash">
+            <div
+                class="dock-icon-inner w-11 h-11 rounded-xl bg-gradient-to-b from-gray-400 to-gray-600 flex items-center justify-center overflow-hidden">
+                <i class="fas fa-recycle text-white text-xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
